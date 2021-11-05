@@ -5,6 +5,9 @@ class Node:
     def __repr__(self):
         return self.id
     
+    def __eq__(self, o):
+        return self.id == o.id
+    
     def __init__(self, node_id, prop_speed, distance=10):
         self.id = node_id
         self.distance = distance
@@ -18,6 +21,9 @@ class Node:
         
     def add_packet(self, packet):
         self.q.append(packet)
+        
+    def dequeue_packet(self):
+        return self.q.popleft()
     
     def init_prop_delay_lookup(self, left, right, level=1):
         if not left and not right:

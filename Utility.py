@@ -18,5 +18,5 @@ class Utility:
     
     @staticmethod
     def print_node_info(node):
-        print(f"Node: {node}\nPackets: {node.q[0]}")
+        print(f"Node: {node}\nPackets: {node.q[0].arrival_time}")
         print(f"Lookup: {node.prop_delay_lookup}\n")
