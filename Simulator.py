@@ -1,10 +1,10 @@
 from Node import Node
 from Packet import Packet
 from Utility import Utility
-import sys
 
 C = 3 * 10**8
 PROP_TIME_BITS = 512.0
+RETRY_MAX = 10
 
 class Simulator:
 
@@ -12,8 +12,7 @@ class Simulator:
         self.simulation_time = simulation_time
         self.arrival_rate = arrival_rate
         self.prop_speed = C * (2.0/3.0)
-        self.retry_max = 10
-        self.transmission_speed = 5
+        self.retry_max = RETRY_MAX
 
         self.collision_count = 0
         self.total_transmitted = 0
@@ -21,6 +20,7 @@ class Simulator:
         
         self.dropped_packets = []
         self.transmitted_packets = []
+        self.efficiency = 0.0
         
         self.init_nodes(num_nodes)
     
@@ -28,7 +28,7 @@ class Simulator:
         first_node = Node(Utility.generate_id(), self.prop_speed)
         self.nodes = [first_node]
         for i in range(1, num_nodes):
-            new_node = Node(node_id=Utility.generate_id(), prop_speed = C * (2.0/3.0) )
+            new_node = Node(Utility.generate_id(), self.prop_speed)
             prev_node = self.nodes[i - 1]
             prev_node.right_node = new_node
             new_node.left_node = prev_node
@@ -39,6 +39,10 @@ class Simulator:
     def run(self):
         self.generate_packets()
         self.poll_packets()
+        self.calculate_metrics()
+    
+    def calculate_metrics(self):
+        self.efficiency = float(self.total_packets - len(self.dropped_packets)) / float(self.total_packets)
     
     def generate_packets(self):
         for node in self.nodes:
@@ -66,14 +70,11 @@ class Simulator:
             if collision_success and carrier_success:
                 self.handle_transmittable_packet(transmitting_node)
             elif not carrier_success:
-                # print("CSMA Failure")
                 self.handle_carrier_failure(next_packet, transmitting_node)
-                # handle backoff incase of carrier failure
             if not collision_success:
+                self.total_transmitted += 1
                 self.handle_collision(next_packet, collided_packets, transmitting_node)
                 self.collision_count += len(collided_packets) + 1
-                print("Packet collided")
-                # handle dropping in case of collision
     
     def handle_carrier_failure(self, packet, node):
         packet.carrier_failure_count += 1
@@ -94,7 +95,7 @@ class Simulator:
         for packet in involved_packets:
             packet.collision_count += 1
             if packet.collision_count >= self.retry_max:
-                self.drop_packet(packet.node)
+                self.dropped_packets.append(packet)
             else:
                 self.transmitted_packets.remove(packet)
                 packet.arrival_time = youngest_packet.arrival_time
@@ -151,7 +152,7 @@ class Simulator:
             transmitted_packet_node = transmitted_packet.node
             prop_delay_to_node = sender.prop_delay_lookup[transmitted_packet_node.id]
             if packet.arrival_time > transmitted_packet.arrival_time + prop_delay_to_node \
-                and packet.arrival_time < transmitted_packet.arrival_time + prop_delay_to_node + packet.transmission_delay:
+                and packet.arrival_time < transmitted_packet.arrival_time + prop_delay_to_node + transmitted_packet.transmission_delay:
                     return False
         return True
 

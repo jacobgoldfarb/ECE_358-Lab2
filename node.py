@@ -9,7 +9,7 @@ class Node:
     def __eq__(self, o):
         return self.id == o.id
     
-    def __init__(self, node_id, prop_speed, distance_from_adjacents=1000):
+    def __init__(self, node_id, prop_speed, distance_from_adjacents=10):
         self.id = node_id
         self.distance_from_adjacents = distance_from_adjacents
         self.prop_speed = prop_speed

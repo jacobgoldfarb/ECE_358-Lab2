@@ -2,8 +2,13 @@ from Simulator import Simulator
 from Utility import Utility
 
 def main():
-    sim = Simulator(num_nodes=5, arrival_rate=20, simulation_time=10)
-    sim.run()
+    nodes = [i for i in range(20, 120, 20)]
+    efficiencies = []
+    for num_nodes in nodes:
+        sim = Simulator(num_nodes=num_nodes, arrival_rate=5, simulation_time=10)
+        sim.run()
+        efficiencies.append(sim.efficiency)
+        print(sim.efficiency)
     
     
 if __name__ == "__main__":
