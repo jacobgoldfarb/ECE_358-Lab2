@@ -2,8 +2,7 @@
 class Packet:
     
     def __repr__(self):
-        return f"Arrival Time: {self.arrival_time}\nNode: {self.node} \
-            \nTransmission Delay: {self.transmission_delay}\n"
+        return f"Arrival Time: {self.arrival_time}\nNode: {self.node}"
     
     def __init__(self, arrival_time, node, length = 1000, transmission_rate=10**6):
         self.transmitted = False
@@ -11,6 +10,8 @@ class Packet:
         self.length = length
         self.transmission_rate = transmission_rate
         self.transmission_delay = self.length / self.transmission_rate
+        self.collision_count = 0
+        self.carrier_failure_count = 0
         self.node = node
     
         

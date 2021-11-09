@@ -1,5 +1,6 @@
 import random
 import math
+import uuid
 
 
 class Utility:
@@ -20,3 +21,16 @@ class Utility:
     def print_node_info(node):
         print(f"Node: {node}\nPackets: {node.q[0].arrival_time}")
         print(f"Lookup: {node.prop_delay_lookup}\n")
+
+    @staticmethod
+    def generate_id(digits=4):
+        id = str(uuid.uuid4())
+        if digits > 16:
+            return id
+        else:
+            return id[:digits]
+        
+    @staticmethod
+    def get_backoff(i, prop_time):
+        R = random.randint(0, 2**i - 1)
+        return float(R) * prop_time
