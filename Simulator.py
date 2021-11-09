@@ -61,7 +61,8 @@ class Simulator:
             transmitting_node = self.get_node_with_next_packet()
             next_packet = transmitting_node.q[0]
             carrier_success = self.carrier_sense(next_packet)
-            collision_success = self.check_collisions(next_packet)
+            collided_packets = self.get_collisions(next_packet)
+            collision_success = not collided_packets
             if collision_success and carrier_success:
                 self.handle_transmittable_packet(transmitting_node)
             elif not carrier_success:
@@ -69,7 +70,8 @@ class Simulator:
                 self.handle_carrier_failure(next_packet, transmitting_node)
                 # handle backoff incase of carrier failure
             if not collision_success:
-                self.collision_count += 1
+                self.handle_collision(next_packet, collided_packets, transmitting_node)
+                self.collision_count += len(collided_packets) + 1
                 print("Packet collided")
                 # handle dropping in case of collision
     
@@ -79,6 +81,25 @@ class Simulator:
             self.drop_packet(node)
         else:
             node.apply_wait_to_packets(self.get_backoff(packet))
+    
+    def handle_collision(self, youngest_packet, involved_packets, node):
+        # Logic for youngest packet
+        youngest_packet.collision_count += 1
+        if youngest_packet.collision_count >= self.retry_max:
+                self.drop_packet(node)
+        else:
+            node.apply_wait_to_packets(self.get_backoff(youngest_packet))
+
+        # Logic for other packet(s) involved in collision
+        for packet in involved_packets:
+            packet.collision_count += 1
+            if packet.collision_count >= self.retry_max:
+                self.drop_packet(packet.node)
+            else:
+                self.transmitted_packets.remove(packet)
+                packet.arrival_time = youngest_packet.arrival_time
+                packet.node.requeue_packet(packet)
+                node.apply_wait_to_packets(self.get_backoff(packet))
     
     def get_backoff(self, packet):
         prop_time = PROP_TIME_BITS / float(packet.transmission_rate)
@@ -102,19 +123,20 @@ class Simulator:
         next_node = min(non_empty_nodes, key=lambda node: node.q[0].arrival_time )
         return next_node
     
-    def check_collisions(self, packet):
+    def get_collisions(self, packet):
+        collided_packets = []
         threshold = packet.arrival_time - max(packet.node.prop_delay_lookup.values()) - packet.transmission_delay
         sender = packet.node
         for transmitted_packet in self.transmitted_packets[::-1]:
-            # if transmitted_packet.arrival_time <= threshold:
-            #     break
-            if transmitted_packet.node == sender:
+            if transmitted_packet.arrival_time <= threshold:
+                break
+            elif transmitted_packet.node == sender:
                 continue
             transmitted_packet_node = transmitted_packet.node
             prop_delay_to_node = sender.prop_delay_lookup[transmitted_packet_node.id]
             if packet.arrival_time <= transmitted_packet.arrival_time + prop_delay_to_node:
-                return False
-        return True
+                collided_packets.append(transmitted_packet)
+        return collided_packets
     
     def carrier_sense(self, packet) -> bool:
         # By this time, any packets that were transmitted will no longer be considered in the carrier 

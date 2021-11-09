@@ -9,7 +9,7 @@ class Node:
     def __eq__(self, o):
         return self.id == o.id
     
-    def __init__(self, node_id, prop_speed, distance_from_adjacents=10):
+    def __init__(self, node_id, prop_speed, distance_from_adjacents=1000):
         self.id = node_id
         self.distance_from_adjacents = distance_from_adjacents
         self.prop_speed = prop_speed
@@ -29,6 +29,9 @@ class Node:
         
     def dequeue_packet(self):
         return self.q.popleft()
+    
+    def requeue_packet(self, packet):
+        self.q.appendleft(packet)
     
     def apply_wait_to_packets(self, wait_time):
         collided_packet = self.q[0]
