@@ -19,7 +19,7 @@ class Simulator:
         self.total_packets = 0
         
         self.dropped_packets = []
-        self.transmitted_packets = []
+        self.successfully_transmitted_packets = []
         self.efficiency = 0.0
         
         self.init_nodes(num_nodes)
@@ -60,51 +60,57 @@ class Simulator:
             self.total_packets += 1
             
     def poll_packets(self):
-        # for i in range(5):
         while self.at_least_one_node_has_packet():
             transmitting_node = self.get_node_with_next_packet()
             next_packet = transmitting_node.q[0]
-            carrier_success = self.carrier_sense(next_packet)
+            (carrier_failure, carrier_packet_time) = self.carrier_sense(next_packet)
             collided_packets = self.get_collisions(next_packet)
-            collision_success = not collided_packets
-            if collision_success and carrier_success:
+            collision_occurred = len(collided_packets) > 0
+            
+            if not collision_occurred and not carrier_failure:
                 self.handle_transmittable_packet(transmitting_node)
-            elif not carrier_success:
-                self.handle_carrier_failure(next_packet, transmitting_node)
-            if not collision_success:
-                self.total_transmitted += 1
+                # transmitting_node.num_collisions = 0
+            elif carrier_failure:
+                self.handle_carrier_failure(transmitting_node, carrier_packet_time, next_packet)
+            elif collision_occurred:
+                num_collided = len(collided_packets) + 1
+                self.total_transmitted += num_collided
                 self.handle_collision(next_packet, collided_packets, transmitting_node)
-                self.collision_count += len(collided_packets) + 1
-    
-    def handle_carrier_failure(self, packet, node):
-        packet.carrier_failure_count += 1
-        if packet.carrier_failure_count >= self.retry_max:
-            self.drop_packet(node)
+                self.collision_count += num_collided
+
+    def handle_carrier_failure(self, node, carrier_packet_time, packet, persistent=False):
+        if persistent:
+            backoff = self.get_backoff(packet.arrival_time, node.num_carrier_failures)
+            node.apply_wait_to_packets(backoff)
         else:
-            node.apply_wait_to_packets(self.get_backoff(packet))
+            node.apply_wait_to_packets(carrier_packet_time - packet.arrival_time)
     
     def handle_collision(self, youngest_packet, involved_packets, node):
-        # Logic for youngest packet
-        youngest_packet.collision_count += 1
-        if youngest_packet.collision_count >= self.retry_max:
-                self.drop_packet(node)
-        else:
-            node.apply_wait_to_packets(self.get_backoff(youngest_packet))
-
+        max_collision_time = youngest_packet.arrival_time
         # Logic for other packet(s) involved in collision
         for packet in involved_packets:
-            packet.collision_count += 1
-            if packet.collision_count >= self.retry_max:
-                self.dropped_packets.append(packet)
+            collider_source = packet.node
+            collider_source.num_collisions += 1
+            if collider_source.num_collisions > self.retry_max:
+                self.drop_packet(collider_source)
+                collider_source.num_collisions = 0
             else:
-                self.transmitted_packets.remove(packet)
-                packet.arrival_time = youngest_packet.arrival_time
-                packet.node.requeue_packet(packet)
-                node.apply_wait_to_packets(self.get_backoff(packet))
+                backoff = self.get_backoff(packet, collider_source.num_collisions)
+                collider_source.apply_wait_to_packets(backoff)
+                max_collision_time = max(packet.arrival_time, max_collision_time)
+
+        # Logic for youngest packet
+        node.num_collisions += 1
+        if node.num_collisions > self.retry_max:
+            self.drop_packet(node)
+            node.num_collisions = 0
+        else:
+            backoff = self.get_backoff(youngest_packet, node.num_collisions)
+            node.apply_wait_to_packets(backoff, max_collision_time)
     
-    def get_backoff(self, packet):
+    def get_backoff(self, packet, fail_count):
         prop_time = PROP_TIME_BITS / float(packet.transmission_rate)
-        return Utility.get_backoff(packet.carrier_failure_count, prop_time)
+        return Utility.get_backoff(fail_count, prop_time)
     
     def drop_packet(self, node):
         self.dropped_packets.append(node.dequeue_packet())
@@ -117,7 +123,7 @@ class Simulator:
     
     def handle_transmittable_packet(self, node):
         self.total_transmitted += 1
-        self.transmitted_packets.append(node.dequeue_packet())
+        self.successfully_transmitted_packets.append(node.dequeue_packet())
         
     def get_node_with_next_packet(self):
         non_empty_nodes = [node for node in self.nodes if not node.empty()]
@@ -126,35 +132,32 @@ class Simulator:
     
     def get_collisions(self, packet):
         collided_packets = []
-        threshold = packet.arrival_time - max(packet.node.prop_delay_lookup.values()) - packet.transmission_delay
         sender = packet.node
-        for transmitted_packet in self.transmitted_packets[::-1]:
-            if transmitted_packet.arrival_time <= threshold:
-                break
-            elif transmitted_packet.node == sender:
-                continue
-            transmitted_packet_node = transmitted_packet.node
-            prop_delay_to_node = sender.prop_delay_lookup[transmitted_packet_node.id]
-            if packet.arrival_time <= transmitted_packet.arrival_time + prop_delay_to_node:
-                collided_packets.append(transmitted_packet)
+        for node in self.nodes:
+            if node == sender or node.empty(): continue
+            packet_candidate = node.q[0]
+            prop_delay_to_node = sender.prop_delay_lookup[node.id]
+            if packet_candidate.arrival_time <= packet.arrival_time + prop_delay_to_node:
+                collided_packets.append(packet_candidate)
         return collided_packets
     
     def carrier_sense(self, packet) -> bool:
-        # By this time, any packets that were transmitted will no longer be considered in the carrier 
+        # By the threshold time, any packets that were transmitted will no longer be considered in the carrier 
         # since these packets cannot possible meet the carrier sense failure requirements.
         threshold = packet.arrival_time - max(packet.node.prop_delay_lookup.values()) - packet.transmission_delay
         sender = packet.node
-        for transmitted_packet in self.transmitted_packets[::-1]:
+        for transmitted_packet in self.successfully_transmitted_packets[::-1]:
             if transmitted_packet.arrival_time <= threshold:
                 break
-            elif transmitted_packet.node == sender:
+            if transmitted_packet.node == sender:
                 continue
             transmitted_packet_node = transmitted_packet.node
             prop_delay_to_node = sender.prop_delay_lookup[transmitted_packet_node.id]
-            if packet.arrival_time > transmitted_packet.arrival_time + prop_delay_to_node \
-                and packet.arrival_time < transmitted_packet.arrival_time + prop_delay_to_node + transmitted_packet.transmission_delay:
-                    return False
-        return True
+            first_bit_arrival_time = transmitted_packet.arrival_time + prop_delay_to_node
+            last_bit_arrival_time = first_bit_arrival_time + transmitted_packet.transmission_delay
+            if first_bit_arrival_time < packet.arrival_time < last_bit_arrival_time:
+                return (True, last_bit_arrival_time)
+        return (False, None)
 
             
         

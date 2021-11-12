@@ -10,6 +10,4 @@ class Packet:
         self.length = length
         self.transmission_rate = transmission_rate
         self.transmission_delay = self.length / self.transmission_rate
-        self.collision_count = 0
-        self.carrier_failure_count = 0
         self.node = node
