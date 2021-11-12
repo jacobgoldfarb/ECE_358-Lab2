@@ -69,7 +69,6 @@ class Simulator:
             
             if not collision_occurred and not carrier_failure:
                 self.handle_transmittable_packet(transmitting_node)
-                # transmitting_node.num_collisions = 0
             elif carrier_failure:
                 self.handle_carrier_failure(transmitting_node, carrier_packet_time, next_packet)
             elif collision_occurred:
@@ -122,6 +121,7 @@ class Simulator:
         return False
     
     def handle_transmittable_packet(self, node):
+        node.num_collisions = 0
         self.total_transmitted += 1
         self.successfully_transmitted_packets.append(node.dequeue_packet())
         
