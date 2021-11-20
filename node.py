@@ -1,5 +1,4 @@
 from collections import deque
-import uuid
 
 class Node:
     
@@ -13,6 +12,7 @@ class Node:
         self.id = node_id
         self.distance_from_adjacents = distance_from_adjacents
         self.prop_speed = prop_speed
+        self.num_carrier_failures = 0
 
         self.q = deque()
         self.left_node = None
