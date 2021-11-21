@@ -38,6 +38,8 @@ class Node:
     def next_packet(self):
         return None if self.empty() else self.q[0]
     
+    # Apply a wait time to all  packets with arrival time  less than the youngest packet's
+    # arrival time + wait time.
     def apply_wait_to_packets(self, wait_time, override_arrival_time=None):
         collided_packet = self.next_packet()
         collided_packet.arrival_time += wait_time

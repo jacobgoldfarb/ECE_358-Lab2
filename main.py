@@ -1,14 +1,13 @@
 from Simulator import Simulator 
 import matplotlib.pyplot as plt
 from multiprocessing import Process, Queue
-from numba import jit
 
 def main():
     nodes = [i for i in range(20, 120, 20)]
     # arrival_rates = [5, 12]
     arrival_rates = [7, 10,  20]
-    sim_times = [50, 60]
-    calculate_efficiency = True
+    sim_times = [50]
+    calculate_efficiency = False
     for sim_time in sim_times:
         efficiencies = {}
         for rate in arrival_rates:
@@ -26,8 +25,7 @@ def main():
     plt.ylabel(ylabel)
     title = "Efficiency vs Number of Nodes" if calculate_efficiency else "Throughput vs Number of Nodes"
     plt.title(title)
-    legend = [f"Simulation time: 50, Arrival rate: {rate}" for rate in arrival_rates]
-    legend += [f"Simulation time: 60, Arrival rate: {rate}" for rate in arrival_rates]
+    legend = [f"Arrival rate: {rate}" for rate in arrival_rates]
     plt.legend(legend)
     plt.show()
 
@@ -65,7 +63,6 @@ def run_sims(arrival_rate, queue=None):
     for p in processses:
         p.join()
     
-@jit
 def run_sim(arrival_rate, nodes, sim_time=10, queue=None):
     sim = Simulator(num_nodes=nodes, arrival_rate=arrival_rate, simulation_time=sim_time, persistent=True)
     sim.run()
